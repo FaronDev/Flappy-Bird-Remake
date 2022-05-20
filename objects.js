@@ -1,3 +1,5 @@
+let range = 0, rangeAdder = 0.05
+
 class Bird {
   constructor(obj, objMode="active"){
     this.x = (app.view.width)/2
@@ -5,21 +7,29 @@ class Bird {
     this.angle = -20
     this.vel = {x: 0, y: -12}
     this.collisionMinDistance = 12 * scale.x // A Box collision shape
-    this.gravity = gravity
+    this.gravity = {x: gravity.x, y: gravity.y * scale.y}
     this.obj = obj
     this.objMode = objMode
+    this.ready = false
 
-    this.passiveAnimSpeed = 0.2
+    this.passiveAnimSpeed = 0.17
     this.activeAnimSpeed = 0.27
   }
 
   init(){
+    this.x = (app.view.width)/2
+    this.y = (app.view.height)/2
     this.obj.anchor.set(0.5)
     this.obj.scale.set(scale.x, scale.y)
     this.updateObj()
 
     app.stage.on("pointerdown", () => {
-      this.vel.y = -12
+      if (inGame && this.ready){
+        this.vel.y = -1 * pipeSpacing/10
+      }
+      if (this.ready == false){
+        this.ready = true
+      }
     })
     
     this.obj.animationSpeed = this.activeAnimSpeed
@@ -57,7 +67,7 @@ class Bird {
       this.obj.animationSpeed = this.passiveAnimSpeed
     }
 
-    if (this.objMode == "active"){
+    if (this.objMode == "active" && this.ready == true){
       this.vel.x += this.gravity.x
       this.vel.y += this.gravity.y
       
@@ -80,6 +90,13 @@ class Bird {
 
     } else if (this.objMode == "passive"){
       this.angle = 0
+
+      if (range < -1 || range > 1){
+        rangeAdder *= -1
+      }
+
+      range += rangeAdder
+      this.y += (Math.cos(Math.PI * range)*2)
     }
 
     
@@ -124,6 +141,7 @@ class Pipe {
   checkIfScored(){
     if (this.x < bird.x){
       score++
+      scoreCount++
       this.checkIfScored = () => {}
     }
   }
@@ -141,6 +159,8 @@ class ScoreBoard {
 
   init(){
     score = 0
+    this.x = (app.view.width)/2
+    this.y = (app.view.height)/10
     this.updateBoard()
   }
 
@@ -157,9 +177,10 @@ class ScoreBoard {
     let localScore = score.toString()
     let spacing = 0
     let scaleRatio = ((innerHeight > innerWidth ? innerWidth : innerHeight) * (1/10))/24
+    scaleRatio = scaleRatio > 2 ? 2 : scaleRatio
     for (let i = 0; i < localScore.length; i++){
       let digit = Number(localScore[i])
-      if (i > 0) {
+      if (i > 0) { 
         spacing += ((Number(localScore[i-1]) == 1) ? 16 : 24)
       }
 
@@ -197,15 +218,15 @@ class Button {
     } else if (type == "pause"){
       app.stop()
     } 
-
-    app.stage.removeChild(this.btn)
   }
 
   init(){
 
     this.btn.x = this.x
     this.btn.y = this.y
-    this.btn.scale.set(scaleRatioUI(this.btn.width), scaleRatioUI(this.btn.width))
+    let scaleRatio = scaleRatioUI(this.btn.height)
+    scaleRatio = scaleRatio > 4 ? 4 : scaleRatio
+    this.btn.scale.set(scaleRatio)
     this.btn.anchor.set(0.5)
 
     this.btn.interactive = true
@@ -213,6 +234,7 @@ class Button {
       this.command(this.type)
     })
 
-    app.stage.addChildAt(this.btn, 2)
+    try {app.stage.addChildAt(this.btn, 4)}
+    catch (err){app.stage.addChildAt(this.btn, 3)}
   }
 }
