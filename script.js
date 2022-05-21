@@ -1,7 +1,7 @@
 const app = new PIXI.Application({
   resizeTo: window
 })
-app.view.id = "renderer"
+// app.view.id = "renderer"
 
 document.body.appendChild(app.view)
 
@@ -22,13 +22,37 @@ const scaleRatioUI = function(btnWidth){return ((innerHeight > innerWidth ? inne
 
 let bird, pipes = [], score = 0, scoreBoard, inGame = false, frameCount = 0, gameSpeed
 let btnTextures = {}, messageTextures = {}, btns = [], messages = [], scoreCount = 0, textureType = 0
-let bgTextures = [], bg
+let bgTextures = [], bg, currBirdSkin = 0, birdLayer = 1, birdSkins = [], inUI = true
+let vol = 0.3, bgType = 0, ground, nightTint = 0xAAAAFF
 
-let x = 0, y = 0
-addEventListener('mousemove', (e) => {
-  x = e.clientX
-  y = e.clientY
-})
+const sfx = {
+  die: new Howl({
+    src: ["./assets/audio/die.ogg","./assets/audio/die.wav"],
+    volume: vol
+  }),
+  hit: new Howl({
+    src: ["./assets/audio/hit.ogg", "./assets/audio/hit.wav"],
+    volume: vol
+  }),
+  point: new Howl({
+    src: ["./assets/audio/point.ogg", "./assets/audio/point.wav"],
+    volume: vol
+  }),
+  swoosh: new Howl({
+    src: ["./assets/audio/swoosh.ogg", "./assets/audio/swoosh.wav"],
+    volume: 0.1
+  }),
+  wing: new Howl({
+    src: ["./assets/audio/wing.ogg", "./assets/audio/wing.wav"],
+    volume: vol
+  })
+}
+
+// let x = 0, y = 0
+// addEventListener('mousemove', (e) => {
+//   x = e.clientX
+//   y = e.clientY
+// })
 
 initSettings()
 
@@ -42,14 +66,20 @@ loader.add("spritesheet", "./assets/spritesheets/spritesheet.json")
 function onAssetsLoaded(){
   // BIRD
 
-  let birdTextures = []
+  birdSkins = []
   let textureOrder = ['0', '1', '2', '1']
-  for (let i = 0; i < 4; i++){ // Loading Bird Textures
-    let texture = PIXI.Texture.from(`YBird${textureOrder[i]}.png`)
-    birdTextures.push(texture)
+  let skins = ['Y', 'R', 'B']
+
+  for (let j = 0; j < 3; j++){
+    let birdTextures = []
+    for (let i = 0; i < 4; i++){ // Loading Bird Textures
+      let texture = PIXI.Texture.from(`${skins[j]}Bird${textureOrder[i]}.png`)
+      birdTextures.push(texture)
+    }
+    birdSkins.push(birdTextures)
   }
 
-  let birdSprite = new PIXI.AnimatedSprite(birdTextures)
+  let birdSprite = new PIXI.AnimatedSprite(birdSkins[currBirdSkin])
   bird = new Bird(birdSprite)                        
   bird.init()  
   bird.objMode = "passive" 
@@ -65,7 +95,7 @@ function onAssetsLoaded(){
   // GROUND
 
   let groundTexture = PIXI.Texture.from("Ground.png")
-  let ground = new PIXI.TilingSprite(
+  ground = new PIXI.TilingSprite(
     groundTexture,
     groundWidth,
     groundHeight
@@ -123,13 +153,13 @@ function onAssetsLoaded(){
 
   app.stage.addChild(bg)
   app.stage.addChild(ground)
-  app.stage.addChildAt(bird.obj, 1)
+  app.stage.addChildAt(bird.obj, birdLayer)
 
   loadUI()
   app.ticker.add((delta) => {
     frameCount++
 
-    if ((frameCount > pipeSummonRate * 60) && inGame && bird.ready){ // Makes a new pipe obstacle
+    if ((frameCount > pipeSummonRate * 60) && inGame){ // Makes a new pipe obstacle
       frameCount = 0
 
       let pipeDown = new PIXI.Sprite(pipeTextures[textureType])
@@ -146,6 +176,14 @@ function onAssetsLoaded(){
       pipeDown.y = pipeHeight + pipeSpacing
       pipeDown.anchor.set(0.5)
 
+      if (bgType == 0){ // Morning
+        pipeUp.tint = 0xFFFFFF
+        pipeDown.tint = 0xFFFFFF
+      } else if (bgType == 1){
+        pipeUp.tint = nightTint
+        pipeDown.tint = nightTint
+      }
+
       let offset = -1*pipeHeight/2 + Math.random()*(innerHeight/2)
       let pipe = new Pipe(obstacle, offset, gameSpeed)
       pipes.push(pipe)
@@ -154,10 +192,9 @@ function onAssetsLoaded(){
 
     }
 
-    if (scoreCount > 10){
+    if (scoreCount >= 15){
       scoreCount = 0
       textureType = textureType == 0 ? 1 : 0
-      updateBackground()
     }
 
     ground.tilePosition.x -= gameSpeed * (1/scale.x)
@@ -188,12 +225,16 @@ function initSettings(){
 function startGame(){
   bird.obj.play()
   bird.init()
-  updateBackground()
   frameCount = 0
   inGame = true
   score = 0
+  scoreCount = 0
   textureType = 0
+  inUI = false
   gameSpeed = originalGameSpeed
+  ground.tilePosition.x = 0
+
+  updateBackground()
 
   pipes.forEach(pipeCls => {
     try {app.stage.removeChild(pipeCls.obj)}
@@ -220,9 +261,11 @@ function endGame(){
   bird.obj.stop()
   gameSpeed = 0
   inGame = false
+  inUI = false
   //app.stage.removeChild(scoreBoard.obj)
   scoreBoard.obj.y = innerHeight/2
 
+  sfx.die.play()
 
   let gameOverSprite = new PIXI.Sprite(messageTextures.gameover)
   gameOverSprite.anchor.set(0.5)
@@ -244,15 +287,20 @@ function endGame(){
   scaleRatio = (scaleRatio * (8/10))/gameOverSprite.width
   gameOverSprite.scale.set(scaleRatio)
 
+  bgType = Math.random() > 0.5 ? 1 : 0
+
   try {app.stage.addChildAt(gameOverSprite, 4)}
   catch (e){app.stage.addChildAt(gameOverSprite, 3)}
 }
 
 function loadUI(){
   bird.init()
+  inUI = true
   gameSpeed = originalGameSpeed
   app.stage.removeChild(scoreBoard.obj)
   bird.objMode = "passive"
+  updateBackground()
+  ground.tilePosition.x = 0
 
   btns.forEach(btnCls => {
     try {app.stage.removeChild(btnCls.btn)}
@@ -291,9 +339,32 @@ function loadUI(){
 function updateBackground(){
   app.stage.removeChild(bg)
 
-  bg = new PIXI.TilingSprite(bgTextures[textureType], innerWidth, innerHeight)
+  bg = new PIXI.TilingSprite(bgTextures[bgType], innerWidth, innerHeight)
   let scaleRatio = innerHeight * 1.07/bgHeight
   bg.scale.set(scaleRatio, scaleRatio)
 
+  if (bgType == 0){ // Morning
+    ground.tint = 0xFFFFFF
+    bg.tint = 0xFFFFFF
+  } else if (bgType == 1){
+    bg.tint = nightTint
+    ground.tint = nightTint
+  }
+
   app.stage.addChildAt(bg, 0)
+}
+
+function updateBirdSkin(){
+  sfx.swoosh.play()
+  app.stage.removeChild(bird.obj)
+  bird.obj.destroy()
+
+  currBirdSkin++
+  if (currBirdSkin > 2){
+    currBirdSkin = 0
+  }
+
+  bird.obj = new PIXI.AnimatedSprite(birdSkins[currBirdSkin])
+  bird.init("skinUpdate")
+  app.stage.addChildAt(bird.obj, birdLayer)
 }

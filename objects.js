@@ -1,4 +1,4 @@
-let range = 0, rangeAdder = 0.05
+let range = 0, rangeAdder = 0.04
 
 class Bird {
   constructor(obj, objMode="active"){
@@ -10,35 +10,57 @@ class Bird {
     this.gravity = {x: gravity.x, y: gravity.y * scale.y}
     this.obj = obj
     this.objMode = objMode
-    this.ready = false
+    this.initCount = 0
 
     this.passiveAnimSpeed = 0.17
     this.activeAnimSpeed = 0.27
   }
 
-  init(){
-    this.x = (app.view.width)/2
-    this.y = (app.view.height)/2
+  init(e=null){
+    this.initCount++
+
+    if (e != "skinUpdate"){
+      this.x = (app.view.width)/2
+      this.y = (app.view.height)/2
+    }
     this.obj.anchor.set(0.5)
     this.obj.scale.set(scale.x, scale.y)
     this.updateObj()
 
-    app.stage.on("pointerdown", () => {
-      if (inGame && this.ready){
-        this.vel.y = -1 * pipeSpacing/10
-      }
-      if (this.ready == false){
-        this.ready = true
-      }
-    })
+    this.addEvents()
+    if (this.initCount == 1){
+      this.addStageEvents()
+    }
     
     this.obj.animationSpeed = this.activeAnimSpeed
     this.obj.play()
   }
 
+  addEvents(){
+    this.obj.interactive = true
+    this.obj.on("pointerdown", () => {
+      if (inUI){
+        updateBirdSkin()
+      }
+    })
+  }
+
+  addStageEvents(){
+    app.stage.on("pointerdown", () => {
+      if (inGame){
+        this.vel.y = -1 * pipeSpacing/10
+        sfx.wing.play()
+      }
+    })
+  }
+
   collided(){
-    if (this.y + this.collisionMinDistance > groundY){
-      this.y = groundY - this.collisionMinDistance
+
+    if (!inGame){
+      return
+    }
+
+    if (this.y + this.collisionMinDistance >= groundY){
       endGame()
     } else if (this.y - this.collisionMinDistance < 0){
       endGame()
@@ -52,6 +74,7 @@ class Bird {
 
       if ((this.x + this.collisionMinDistance > pipe1.x - (pipeWidth * (scale.x + (scale.x * 0.2)))/2) && (this.x - this.collisionMinDistance < pipe1.x + (pipeWidth * (scale.x + (scale.x * 0.2)))/2)){ // If going in between 2 pipes
         if ((this.y + this.collisionMinDistance > pipe2.y - (pipeHeight * scale.y)/2) || (this.y - this.collisionMinDistance < pipe1.y + (pipeHeight * scale.y)/2)){ // If collided with pipe on the y axis
+          sfx.hit.play()
           endGame()
         }
       }
@@ -67,19 +90,23 @@ class Bird {
       this.obj.animationSpeed = this.passiveAnimSpeed
     }
 
-    if (this.objMode == "active" && this.ready == true){
+    if (this.objMode == "active"){
       this.vel.x += this.gravity.x
       this.vel.y += this.gravity.y
       
       this.x += this.vel.x
       this.y += this.vel.y
 
+      if (this.y + this.collisionMinDistance > groundY){
+        this.y = groundY - this.collisionMinDistance
+      }
+
       let angleStart = -20,
         angleEnd = 90,
-        ySpeedStart = 20,
-        ySpeedEnd = 25
+        ySpeedStart = 13,
+        ySpeedEnd = 23
 
-      this.angle = angleStart + (((angleEnd - angleStart)/ySpeedEnd) * this.vel.y)
+      this.angle = angleStart + (((angleEnd - angleStart)/(ySpeedEnd - ySpeedStart)) * (this.vel.y < ySpeedStart ? 0 : this.vel.y - ySpeedStart ))
       if (this.angle > angleEnd){
         this.angle = angleEnd
       } else if (this.angle < angleStart){
@@ -96,7 +123,7 @@ class Bird {
       }
 
       range += rangeAdder
-      this.y += (Math.cos(Math.PI * range)*2)
+      this.y += (Math.cos(Math.PI * range)*1)
     }
 
     
@@ -142,6 +169,7 @@ class Pipe {
     if (this.x < bird.x){
       score++
       scoreCount++
+      sfx.point.play()
       this.checkIfScored = () => {}
     }
   }
@@ -206,6 +234,7 @@ class Button {
   }
 
   command(type){
+    sfx.swoosh.play()
 
     if (type == "start" || type == "restart"){
       startGame()
